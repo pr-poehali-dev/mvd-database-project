@@ -1,5 +1,16 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import Icon from "@/components/ui/icon";
+
+const API = {
+  cases: "https://functions.poehali.dev/04b24d28-ddd4-47d2-868f-e953bf2f1d2a",
+  orders: "https://functions.poehali.dev/260471d7-b7bb-4e98-adc2-bd58d1d8e1e1",
+  staff: "https://functions.poehali.dev/a1fac567-a35e-459d-ac8e-28c058523115",
+};
+
+async function apiFetch(url: string, options?: RequestInit) {
+  const res = await fetch(url, { headers: { "Content-Type": "application/json" }, ...options });
+  return res.json();
+}
 
 type CaseStatus = "Активное" | "Расследование" | "Приостановлено" | "Закрыто";
 
@@ -110,6 +121,22 @@ export default function Index() {
   const [cases, setCases] = useState<CaseRecord[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [staff, setStaff] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    const [c, o, s] = await Promise.all([
+      apiFetch(API.cases),
+      apiFetch(API.orders),
+      apiFetch(API.staff),
+    ]);
+    if (Array.isArray(c)) setCases(c);
+    if (Array.isArray(o)) setOrders(o);
+    if (Array.isArray(s)) setStaff(s);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { if (authed) loadAll(); }, [authed, loadAll]);
 
   // Quick status change
   const [statusPopup, setStatusPopup] = useState<string | null>(null);
@@ -175,31 +202,39 @@ export default function Index() {
     return e;
   };
 
-  const handleSaveCase = () => {
+  const handleSaveCase = async () => {
     const errs = validateCase(newCase);
     setFormErrors(errs);
     if (Object.keys(errs).length > 0) return;
-    setCases((prev) => [{ id: String(Date.now()), ...newCase }, ...prev]);
+    const created = { id: String(Date.now()), ...newCase };
+    await apiFetch(API.cases, { method: "POST", body: JSON.stringify(created) });
+    setCases((prev) => [created, ...prev]);
     setFormSaved(true);
     setTimeout(() => { setFormSaved(false); setActiveTab("database"); setNewCase({ ...EMPTY_CASE, number: genNumber() }); setFormErrors({}); }, 1000);
   };
 
-  const handleUpdateCase = () => {
+  const handleUpdateCase = async () => {
     if (!editCase) return;
     const errs = validateCase(editCase);
     setFormErrors(errs);
     if (Object.keys(errs).length > 0) return;
+    await apiFetch(API.cases, { method: "PUT", body: JSON.stringify(editCase) });
     setCases((prev) => prev.map((c) => c.id === editCase.id ? editCase : c));
     setEditCase(null); setFormErrors({});
   };
 
-  const handleDeleteCase = (id: string) => {
+  const handleDeleteCase = async (id: string) => {
+    await apiFetch(`${API.cases}?id=${id}`, { method: "DELETE" });
     setCases((prev) => prev.filter((c) => c.id !== id));
     setDeleteCase(null); setViewCase(null);
   };
 
-  const handleQuickStatus = (id: string, status: CaseStatus) => {
-    setCases((prev) => prev.map((c) => c.id === id ? { ...c, status } : c));
+  const handleQuickStatus = async (id: string, status: CaseStatus) => {
+    const c = cases.find((x) => x.id === id);
+    if (!c) return;
+    const updated = { ...c, status };
+    await apiFetch(API.cases, { method: "PUT", body: JSON.stringify(updated) });
+    setCases((prev) => prev.map((x) => x.id === id ? updated : x));
     setStatusPopup(null);
   };
 
@@ -222,17 +257,20 @@ export default function Index() {
     if (!d.author.trim()) e.author = "Введите автора"; if (!d.date) e.date = "Выберите дату";
     return e;
   };
-  const handleSaveOrder = () => {
+  const handleSaveOrder = async () => {
     const errs = validateOrder(newOrder); setOrderErrors(errs);
     if (Object.keys(errs).length > 0) return;
-    setOrders((prev) => [{ id: String(Date.now()), ...newOrder }, ...prev]);
+    const created = { id: String(Date.now()), ...newOrder };
+    await apiFetch(API.orders, { method: "POST", body: JSON.stringify(created) });
+    setOrders((prev) => [created, ...prev]);
     setOrderSaved(true);
     setTimeout(() => { setOrderSaved(false); setShowOrderForm(false); setNewOrder({ number: "", date: new Date().toISOString().split("T")[0], title: "", author: "", type: "Внутренний", signed: false }); setOrderErrors({}); }, 1000);
   };
-  const handleUpdateOrder = () => {
+  const handleUpdateOrder = async () => {
     if (!editOrder) return;
     const errs = validateOrder(editOrder); setOrderErrors(errs);
     if (Object.keys(errs).length > 0) return;
+    await apiFetch(API.orders, { method: "PUT", body: JSON.stringify(editOrder) });
     setOrders((prev) => prev.map((o) => o.id === editOrder.id ? editOrder : o));
     setEditOrder(null); setOrderErrors({});
   };
@@ -244,17 +282,20 @@ export default function Index() {
     if (!d.position.trim()) e.position = "Введите должность";
     return e;
   };
-  const handleSaveEmployee = () => {
+  const handleSaveEmployee = async () => {
     const errs = validateEmployee(newEmployee); setStaffErrors(errs);
     if (Object.keys(errs).length > 0) return;
-    setStaff((prev) => [{ id: String(Date.now()), ...newEmployee }, ...prev]);
+    const created = { id: String(Date.now()), ...newEmployee };
+    await apiFetch(API.staff, { method: "POST", body: JSON.stringify(created) });
+    setStaff((prev) => [created, ...prev]);
     setStaffSaved(true);
     setTimeout(() => { setStaffSaved(false); setShowStaffForm(false); setNewEmployee({ ...EMPTY_EMPLOYEE }); setStaffErrors({}); }, 1000);
   };
-  const handleUpdateEmployee = () => {
+  const handleUpdateEmployee = async () => {
     if (!editEmployee) return;
     const errs = validateEmployee(editEmployee); setStaffErrors(errs);
     if (Object.keys(errs).length > 0) return;
+    await apiFetch(API.staff, { method: "PUT", body: JSON.stringify(editEmployee) });
     setStaff((prev) => prev.map((e) => e.id === editEmployee.id ? editEmployee : e));
     setEditEmployee(null); setStaffErrors({});
   };
@@ -473,6 +514,15 @@ export default function Index() {
       </header>
 
       <main className="flex-1 max-w-screen-xl mx-auto w-full px-6 py-6">
+        {loading && (
+          <div className="flex items-center justify-center py-24">
+            <div className="flex items-center gap-3" style={{ color: "hsl(215 15% 45%)" }}>
+              <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+              <span className="text-sm mono">Загрузка данных...</span>
+            </div>
+          </div>
+        )}
+        {!loading && (<>
 
         {/* ── DATABASE ── */}
         {activeTab === "database" && (
@@ -879,7 +929,7 @@ export default function Index() {
               </div>
               <p className="text-xs mb-5" style={{ color: "hsl(215 15% 50%)" }}>Документ будет удалён из реестра.</p>
               <div className="flex gap-2">
-                <button onClick={() => { setOrders((prev) => prev.filter((o) => o.id !== deleteOrder.id)); setDeleteOrder(null); }} className="flex items-center gap-2 px-4 py-2 rounded text-sm font-medium" style={{ background: "hsl(0 70% 50%)", color: "white" }}><Icon name="Trash2" size={13} />Удалить</button>
+                <button onClick={async () => { await apiFetch(`${API.orders}?id=${deleteOrder.id}`, { method: "DELETE" }); setOrders((prev) => prev.filter((o) => o.id !== deleteOrder.id)); setDeleteOrder(null); }} className="flex items-center gap-2 px-4 py-2 rounded text-sm font-medium" style={{ background: "hsl(0 70% 50%)", color: "white" }}><Icon name="Trash2" size={13} />Удалить</button>
                 <button onClick={() => setDeleteOrder(null)} className="px-4 py-2 rounded text-sm" style={{ background: "hsl(220 22% 15%)", color: "hsl(215 15% 55%)", border: "1px solid hsl(220 18% 20%)" }}>Отмена</button>
               </div>
             </div>
@@ -1007,7 +1057,7 @@ export default function Index() {
               </div>
               <p className="text-xs mb-5" style={{ color: "hsl(215 15% 50%)" }}>Запись будет удалена из списка личного состава.</p>
               <div className="flex gap-2">
-                <button onClick={() => { setStaff((prev) => prev.filter((e) => e.id !== deleteEmployee.id)); setDeleteEmployee(null); }} className="flex items-center gap-2 px-4 py-2 rounded text-sm font-medium" style={{ background: "hsl(0 70% 50%)", color: "white" }}><Icon name="Trash2" size={13} />Удалить</button>
+                <button onClick={async () => { await apiFetch(`${API.staff}?id=${deleteEmployee.id}`, { method: "DELETE" }); setStaff((prev) => prev.filter((e) => e.id !== deleteEmployee.id)); setDeleteEmployee(null); }} className="flex items-center gap-2 px-4 py-2 rounded text-sm font-medium" style={{ background: "hsl(0 70% 50%)", color: "white" }}><Icon name="Trash2" size={13} />Удалить</button>
                 <button onClick={() => setDeleteEmployee(null)} className="px-4 py-2 rounded text-sm" style={{ background: "hsl(220 22% 15%)", color: "hsl(215 15% 55%)", border: "1px solid hsl(220 18% 20%)" }}>Отмена</button>
               </div>
             </div>
@@ -1080,6 +1130,7 @@ export default function Index() {
             </div>
           </div>
         )}
+        </>)}
       </main>
 
       <footer className="py-3 px-6" style={{ borderTop: "1px solid hsl(220 18% 14%)", background: "hsl(220 28% 6%)" }}>
