@@ -13,7 +13,6 @@ interface CaseRecord {
   investigator: string;
   status: CaseStatus;
   description: string;
-  district: string;
 }
 
 interface Order {
@@ -25,26 +24,6 @@ interface Order {
   type: "Внутренний" | "Нормативный" | "Оперативный";
   signed: boolean;
 }
-
-const INITIAL_CASES: CaseRecord[] = [
-  { id: "1", number: "УД-2024-001847", date: "2024-01-15", category: "Кража", suspect: "Петров Алексей Владимирович", investigator: "Соколов И.П.", status: "Расследование", description: "Кража имущества из жилого помещения, ул. Ленина д.12", district: "Центральный" },
-  { id: "2", number: "УД-2024-001923", date: "2024-01-22", category: "Мошенничество", suspect: "Зайцева Марина Сергеевна", investigator: "Кузнецова А.В.", status: "Активное", description: "Мошенничество с банковскими картами на сумму 340 000 руб.", district: "Северный" },
-  { id: "3", number: "УД-2024-002105", date: "2024-02-03", category: "ДТП", suspect: "Морозов Дмитрий Иванович", investigator: "Волков С.Н.", status: "Закрыто", description: "ДТП с пострадавшими, пр. Мира д.45", district: "Южный" },
-  { id: "4", number: "УД-2024-002341", date: "2024-02-14", category: "Хулиганство", suspect: "Козлов Павел Андреевич", investigator: "Соколов И.П.", status: "Закрыто", description: "Хулиганство в общественном месте, ТЦ «Центр»", district: "Центральный" },
-  { id: "5", number: "УД-2024-002678", date: "2024-03-01", category: "Разбой", suspect: "Новиков Антон Романович", investigator: "Лебедев К.М.", status: "Расследование", description: "Вооружённый разбой, ул. Садовая д.7", district: "Восточный" },
-  { id: "6", number: "УД-2024-002901", date: "2024-03-10", category: "Наркотики", suspect: "Тихонов Виктор Сергеевич", investigator: "Кузнецова А.В.", status: "Приостановлено", description: "Сбыт наркотических веществ в особо крупном размере", district: "Северный" },
-  { id: "7", number: "УД-2024-003012", date: "2024-03-18", category: "Кража", suspect: "Блинова Ольга Николаевна", investigator: "Волков С.Н.", status: "Активное", description: "Кража из супермаркета «Пятёрочка»", district: "Западный" },
-  { id: "8", number: "УД-2024-003247", date: "2024-04-02", category: "Мошенничество", suspect: "Симонов Григорий Павлович", investigator: "Лебедев К.М.", status: "Расследование", description: "Мошенничество при купле-продаже автомобиля", district: "Южный" },
-];
-
-const INITIAL_ORDERS: Order[] = [
-  { id: "1", number: "ПР-2024-0041", date: "2024-01-10", title: "О порядке ведения уголовных дел в 2024 году", author: "Полковник Громов В.А.", type: "Нормативный", signed: true },
-  { id: "2", number: "ПР-2024-0078", date: "2024-01-25", title: "Об усилении охраны общественного порядка", author: "Подполковник Рыбаков И.С.", type: "Оперативный", signed: true },
-  { id: "3", number: "ПР-2024-0112", date: "2024-02-08", title: "О проведении профилактических мероприятий", author: "Майор Столяров Д.П.", type: "Внутренний", signed: true },
-  { id: "4", number: "ПР-2024-0156", date: "2024-02-20", title: "О дополнительном штатном расписании отдела", author: "Полковник Громов В.А.", type: "Нормативный", signed: false },
-  { id: "5", number: "ПР-2024-0189", date: "2024-03-05", title: "Об организации дежурств в праздничные дни", author: "Подполковник Рыбаков И.С.", type: "Оперативный", signed: true },
-  { id: "6", number: "ПР-2024-0223", date: "2024-03-22", title: "О внедрении новых форм отчётности", author: "Майор Столяров Д.П.", type: "Внутренний", signed: false },
-];
 
 type Tab = "database" | "new-case" | "orders" | "analytics";
 
@@ -62,26 +41,74 @@ const STATUS_ICON: Record<CaseStatus, string> = {
   "Закрыто": "CheckCircle",
 };
 
+const EMPTY_CASE = {
+  number: "",
+  date: new Date().toISOString().split("T")[0],
+  category: "Кража" as CaseCategory,
+  suspect: "",
+  investigator: "",
+  description: "",
+  status: "Активное" as CaseStatus,
+};
+
+function genNumber() {
+  const year = new Date().getFullYear();
+  const n = String(Math.floor(Math.random() * 900000) + 100000);
+  return `УД-${year}-${n}`;
+}
+
+// Верификация логин/пароль
+const CREDENTIALS = { login: "admin", password: "mvd2024" };
+
 export default function Index() {
+  // Auth
+  const [authed, setAuthed] = useState(false);
+  const [loginForm, setLoginForm] = useState({ login: "", password: "" });
+  const [loginError, setLoginError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+
+  const handleLogin = () => {
+    if (loginForm.login === CREDENTIALS.login && loginForm.password === CREDENTIALS.password) {
+      setAuthed(true);
+      setLoginError("");
+    } else {
+      setLoginError("Неверный логин или пароль");
+    }
+  };
+
+  // App state
   const [activeTab, setActiveTab] = useState<Tab>("database");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("Все");
-  const [selectedCase, setSelectedCase] = useState<CaseRecord | null>(null);
-  const [cases, setCases] = useState<CaseRecord[]>(INITIAL_CASES);
-  const [orders] = useState<Order[]>(INITIAL_ORDERS);
+  const [cases, setCases] = useState<CaseRecord[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
 
-  const [newCase, setNewCase] = useState({
-    number: `УД-2024-${String(Math.floor(Math.random() * 9000) + 1000).padStart(6, "0")}`,
-    date: new Date().toISOString().split("T")[0],
-    category: "Кража" as CaseCategory,
-    suspect: "",
-    investigator: "",
-    description: "",
-    district: "Центральный",
-    status: "Активное" as CaseStatus,
-  });
+  // Modal state
+  const [viewCase, setViewCase] = useState<CaseRecord | null>(null);
+  const [editCase, setEditCase] = useState<CaseRecord | null>(null);
+  const [deleteCase, setDeleteCase] = useState<CaseRecord | null>(null);
+  const [deleteOrder, setDeleteOrder] = useState<Order | null>(null);
 
+  // New case form
+  const [newCase, setNewCase] = useState({ ...EMPTY_CASE, number: genNumber() });
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [formSaved, setFormSaved] = useState(false);
+
+  // New order form
+  const [newOrder, setNewOrder] = useState({
+    number: "",
+    date: new Date().toISOString().split("T")[0],
+    title: "",
+    author: "",
+    type: "Внутренний" as Order["type"],
+    signed: false,
+  });
+  const [orderErrors, setOrderErrors] = useState<Record<string, string>>({});
+  const [orderSaved, setOrderSaved] = useState(false);
+  const [showOrderForm, setShowOrderForm] = useState(false);
+
+  // Edit order
+  const [editOrder, setEditOrder] = useState<Order | null>(null);
 
   const filteredCases = useMemo(() => {
     return cases.filter((c) => {
@@ -93,15 +120,14 @@ export default function Index() {
         c.investigator.toLowerCase().includes(q) ||
         c.date.includes(q) ||
         c.status.toLowerCase().includes(q) ||
-        c.category.toLowerCase().includes(q) ||
-        c.district.toLowerCase().includes(q);
+        c.category.toLowerCase().includes(q);
       const matchStatus = filterStatus === "Все" || c.status === filterStatus;
       return matchSearch && matchStatus;
     });
   }, [cases, searchQuery, filterStatus]);
 
   const analytics = useMemo(() => {
-    const total = cases.length;
+    const total = cases.length || 1;
     const byStatus = {
       Активное: cases.filter((c) => c.status === "Активное").length,
       Расследование: cases.filter((c) => c.status === "Расследование").length,
@@ -110,31 +136,90 @@ export default function Index() {
     };
     const byCategory = {} as Record<string, number>;
     cases.forEach((c) => { byCategory[c.category] = (byCategory[c.category] || 0) + 1; });
-    const byDistrict = {} as Record<string, number>;
-    cases.forEach((c) => { byDistrict[c.district] = (byDistrict[c.district] || 0) + 1; });
-    const closedRate = Math.round((byStatus.Закрыто / total) * 100);
-    return { total, byStatus, byCategory, byDistrict, closedRate };
+    const closedRate = cases.length === 0 ? 0 : Math.round((byStatus.Закрыто / cases.length) * 100);
+    return { total: cases.length, byStatus, byCategory, closedRate };
   }, [cases]);
 
+  // Validate new case
+  const validateCase = (data: typeof newCase) => {
+    const errs: Record<string, string> = {};
+    if (!data.number.trim()) errs.number = "Введите номер дела";
+    if (!data.suspect.trim()) errs.suspect = "Введите ФИО подозреваемого";
+    if (!data.investigator.trim()) errs.investigator = "Введите следователя";
+    if (!data.description.trim()) errs.description = "Введите описание";
+    if (!data.date) errs.date = "Выберите дату";
+    return errs;
+  };
+
   const handleSaveCase = () => {
-    if (!newCase.suspect || !newCase.investigator || !newCase.description) return;
+    const errs = validateCase(newCase);
+    setFormErrors(errs);
+    if (Object.keys(errs).length > 0) return;
     const created: CaseRecord = { id: String(Date.now()), ...newCase };
     setCases((prev) => [created, ...prev]);
     setFormSaved(true);
     setTimeout(() => {
       setFormSaved(false);
       setActiveTab("database");
-      setNewCase({
-        number: `УД-2024-${String(Math.floor(Math.random() * 9000) + 1000).padStart(6, "0")}`,
-        date: new Date().toISOString().split("T")[0],
-        category: "Кража",
-        suspect: "",
-        investigator: "",
-        description: "",
-        district: "Центральный",
-        status: "Активное",
-      });
-    }, 1200);
+      setNewCase({ ...EMPTY_CASE, number: genNumber() });
+      setFormErrors({});
+    }, 1000);
+  };
+
+  const handleUpdateCase = () => {
+    if (!editCase) return;
+    const errs = validateCase(editCase);
+    setFormErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+    setCases((prev) => prev.map((c) => c.id === editCase.id ? editCase : c));
+    setEditCase(null);
+    setFormErrors({});
+  };
+
+  const handleDeleteCase = (id: string) => {
+    setCases((prev) => prev.filter((c) => c.id !== id));
+    setDeleteCase(null);
+    setViewCase(null);
+  };
+
+  // Validate order
+  const validateOrder = (data: typeof newOrder) => {
+    const errs: Record<string, string> = {};
+    if (!data.number.trim()) errs.number = "Введите номер приказа";
+    if (!data.title.trim()) errs.title = "Введите наименование";
+    if (!data.author.trim()) errs.author = "Введите автора";
+    if (!data.date) errs.date = "Выберите дату";
+    return errs;
+  };
+
+  const handleSaveOrder = () => {
+    const errs = validateOrder(newOrder);
+    setOrderErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+    const created: Order = { id: String(Date.now()), ...newOrder };
+    setOrders((prev) => [created, ...prev]);
+    setOrderSaved(true);
+    setTimeout(() => {
+      setOrderSaved(false);
+      setShowOrderForm(false);
+      setNewOrder({ number: "", date: new Date().toISOString().split("T")[0], title: "", author: "", type: "Внутренний", signed: false });
+      setOrderErrors({});
+    }, 1000);
+  };
+
+  const handleUpdateOrder = () => {
+    if (!editOrder) return;
+    const errs = validateOrder(editOrder);
+    setOrderErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+    setOrders((prev) => prev.map((o) => o.id === editOrder.id ? editOrder : o));
+    setEditOrder(null);
+    setOrderErrors({});
+  };
+
+  const handleDeleteOrder = (id: string) => {
+    setOrders((prev) => prev.filter((o) => o.id !== id));
+    setDeleteOrder(null);
   };
 
   const tabs: { id: Tab; label: string; icon: string }[] = [
@@ -143,6 +228,96 @@ export default function Index() {
     { id: "orders", label: "Приказы", icon: "FileText" },
     { id: "analytics", label: "Аналитика", icon: "BarChart3" },
   ];
+
+  const inputStyle = (err?: string) => ({
+    background: "hsl(220 22% 13%)",
+    border: `1px solid ${err ? "hsl(0 70% 50%)" : "hsl(220 18% 18%)"}`,
+    color: "hsl(210 20% 85%)",
+  });
+
+  const fieldErr = (msg?: string) => msg ? (
+    <span className="text-xs mt-1 block" style={{ color: "hsl(0 70% 55%)" }}>{msg}</span>
+  ) : null;
+
+  // LOGIN SCREEN
+  if (!authed) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "hsl(220 25% 8%)" }}>
+        <div className="w-full max-w-sm animate-scale-in">
+          <div className="flex items-center gap-3 mb-8 justify-center">
+            <div className="w-12 h-12 rounded flex items-center justify-center" style={{ background: "hsl(210 80% 52%)" }}>
+              <Icon name="Shield" size={24} className="text-white" />
+            </div>
+            <div className="text-center">
+              <div className="font-semibold text-white tracking-wide text-sm">МВД РОССИЙСКОЙ ФЕДЕРАЦИИ</div>
+              <div className="text-xs mono" style={{ color: "hsl(215 15% 50%)" }}>Автоматизированная информационная система</div>
+            </div>
+          </div>
+
+          <div className="rounded-lg p-6" style={{ background: "hsl(220 22% 11%)", border: "1px solid hsl(220 18% 18%)" }}>
+            <h2 className="text-sm font-semibold mb-5 text-center" style={{ color: "hsl(210 20% 80%)" }}>ВХОД В СИСТЕМУ</h2>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>ЛОГИН</label>
+                <input
+                  type="text"
+                  placeholder="Введите логин"
+                  value={loginForm.login}
+                  onChange={(e) => { setLoginForm({ ...loginForm, login: e.target.value }); setLoginError(""); }}
+                  onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+                  className="w-full px-3 py-2.5 rounded text-sm outline-none"
+                  style={inputStyle(loginError ? " " : "")}
+                  onFocus={(e) => (e.target.style.borderColor = "hsl(210 80% 52%)")}
+                  onBlur={(e) => (e.target.style.borderColor = loginError ? "hsl(0 70% 50%)" : "hsl(220 18% 18%)")}
+                />
+              </div>
+              <div>
+                <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>ПАРОЛЬ</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Введите пароль"
+                    value={loginForm.password}
+                    onChange={(e) => { setLoginForm({ ...loginForm, password: e.target.value }); setLoginError(""); }}
+                    onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+                    className="w-full px-3 py-2.5 pr-10 rounded text-sm outline-none"
+                    style={inputStyle(loginError ? " " : "")}
+                    onFocus={(e) => (e.target.style.borderColor = "hsl(210 80% 52%)")}
+                    onBlur={(e) => (e.target.style.borderColor = loginError ? "hsl(0 70% 50%)" : "hsl(220 18% 18%)")}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2"
+                    style={{ color: "hsl(215 15% 45%)" }}
+                  >
+                    <Icon name={showPassword ? "EyeOff" : "Eye"} size={14} />
+                  </button>
+                </div>
+                {loginError && (
+                  <div className="flex items-center gap-1.5 mt-2">
+                    <Icon name="AlertCircle" size={12} style={{ color: "hsl(0 70% 55%)" }} />
+                    <span className="text-xs" style={{ color: "hsl(0 70% 55%)" }}>{loginError}</span>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={handleLogin}
+                className="w-full py-2.5 rounded text-sm font-medium mt-2 transition-all"
+                style={{ background: "hsl(210 80% 52%)", color: "white" }}
+              >
+                Войти в систему
+              </button>
+            </div>
+          </div>
+          <div className="text-center mt-4 text-xs mono" style={{ color: "hsl(215 15% 35%)" }}>
+            Доступ только для уполномоченных сотрудников
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "hsl(220 25% 8%)" }}>
@@ -164,26 +339,28 @@ export default function Index() {
                 <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
                 <span>Система активна</span>
               </div>
-              <div className="text-xs mono px-3 py-1.5 rounded" style={{ background: "hsl(220 22% 11%)", color: "hsl(215 15% 60%)", border: "1px solid hsl(220 18% 18%)" }}>
-                Майор Соколов И.П.
-              </div>
+              <button
+                onClick={() => setAuthed(false)}
+                className="flex items-center gap-2 text-xs mono px-3 py-1.5 rounded transition-all"
+                style={{ background: "hsl(220 22% 11%)", color: "hsl(215 15% 60%)", border: "1px solid hsl(220 18% 18%)" }}
+              >
+                <Icon name="LogOut" size={12} />
+                Выход
+              </button>
             </div>
           </div>
 
-          {/* Nav tabs */}
           <div className="flex gap-0">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`nav-tab flex items-center gap-2 px-5 py-3 text-sm font-medium transition-all ${activeTab === tab.id ? "active" : ""}`}
-                style={{
-                  color: activeTab === tab.id ? "hsl(210 80% 62%)" : "hsl(215 15% 50%)",
-                }}
+                style={{ color: activeTab === tab.id ? "hsl(210 80% 62%)" : "hsl(215 15% 50%)" }}
               >
                 <Icon name={tab.icon} size={15} />
                 {tab.label}
-                {tab.id === "database" && (
+                {tab.id === "database" && cases.length > 0 && (
                   <span className="ml-1 px-1.5 py-0.5 text-xs rounded mono" style={{ background: "hsl(210 80% 52% / 0.15)", color: "hsl(210 80% 62%)" }}>
                     {cases.length}
                   </span>
@@ -194,7 +371,6 @@ export default function Index() {
         </div>
       </header>
 
-      {/* Content */}
       <main className="flex-1 max-w-screen-xl mx-auto w-full px-6 py-6">
 
         {/* DATABASE TAB */}
@@ -205,7 +381,7 @@ export default function Index() {
                 <Icon name="Search" size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "hsl(215 15% 45%)" }} />
                 <input
                   type="text"
-                  placeholder="Поиск по номеру дела, фамилии, дате, статусу, категории..."
+                  placeholder="Поиск по номеру, фамилии, дате, статусу, категории..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-9 pr-4 py-2.5 text-sm rounded outline-none mono"
@@ -233,7 +409,7 @@ export default function Index() {
               </select>
             </div>
 
-            {/* Stats row */}
+            {/* Stats */}
             <div className="grid grid-cols-4 gap-3 mb-4">
               {(["Активное", "Расследование", "Приостановлено", "Закрыто"] as CaseStatus[]).map((s) => (
                 <button
@@ -261,21 +437,17 @@ export default function Index() {
               <table className="w-full text-sm">
                 <thead>
                   <tr style={{ background: "hsl(220 22% 10%)", borderBottom: "1px solid hsl(220 18% 18%)" }}>
-                    <th className="text-left px-4 py-3 font-medium text-xs mono" style={{ color: "hsl(215 15% 45%)" }}>НОМЕР ДЕЛА</th>
-                    <th className="text-left px-4 py-3 font-medium text-xs mono" style={{ color: "hsl(215 15% 45%)" }}>ДАТА</th>
-                    <th className="text-left px-4 py-3 font-medium text-xs mono" style={{ color: "hsl(215 15% 45%)" }}>КАТЕГОРИЯ</th>
-                    <th className="text-left px-4 py-3 font-medium text-xs mono" style={{ color: "hsl(215 15% 45%)" }}>ПОДОЗРЕВАЕМЫЙ</th>
-                    <th className="text-left px-4 py-3 font-medium text-xs mono" style={{ color: "hsl(215 15% 45%)" }}>СЛЕДОВАТЕЛЬ</th>
-                    <th className="text-left px-4 py-3 font-medium text-xs mono" style={{ color: "hsl(215 15% 45%)" }}>СТАТУС</th>
-                    <th className="px-4 py-3"></th>
+                    {["НОМЕР ДЕЛА", "ДАТА", "КАТЕГОРИЯ", "ПОДОЗРЕВАЕМЫЙ", "СЛЕДОВАТЕЛЬ", "СТАТУС", ""].map((h) => (
+                      <th key={h} className="text-left px-4 py-3 font-medium text-xs mono" style={{ color: "hsl(215 15% 45%)" }}>{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {filteredCases.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-12" style={{ color: "hsl(215 15% 40%)" }}>
-                        <Icon name="SearchX" size={32} className="mx-auto mb-2 opacity-40" />
-                        <div className="text-sm">Записи не найдены</div>
+                      <td colSpan={7} className="text-center py-16" style={{ color: "hsl(215 15% 40%)" }}>
+                        <Icon name="FolderOpen" size={36} className="mx-auto mb-3 opacity-30" />
+                        <div className="text-sm">{cases.length === 0 ? "База данных пуста — добавьте первое дело" : "Записи не найдены"}</div>
                       </td>
                     </tr>
                   ) : (
@@ -287,7 +459,7 @@ export default function Index() {
                           background: i % 2 === 0 ? "hsl(220 22% 11%)" : "hsl(220 22% 12%)",
                           borderBottom: "1px solid hsl(220 18% 16%)",
                         }}
-                        onClick={() => setSelectedCase(c)}
+                        onClick={() => setViewCase(c)}
                       >
                         <td className="px-4 py-3 mono font-medium text-xs" style={{ color: "hsl(210 80% 62%)" }}>{c.number}</td>
                         <td className="px-4 py-3 mono text-xs" style={{ color: "hsl(215 15% 60%)" }}>{c.date}</td>
@@ -301,14 +473,31 @@ export default function Index() {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <Icon name="ChevronRight" size={14} style={{ color: "hsl(215 15% 35%)" }} />
+                          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => { setEditCase({ ...c }); setFormErrors({}); }}
+                              className="p-1.5 rounded transition-all"
+                              style={{ color: "hsl(210 80% 55%)", background: "hsl(210 80% 52% / 0.1)" }}
+                              title="Редактировать"
+                            >
+                              <Icon name="Pencil" size={13} />
+                            </button>
+                            <button
+                              onClick={() => setDeleteCase(c)}
+                              className="p-1.5 rounded transition-all"
+                              style={{ color: "hsl(0 70% 55%)", background: "hsl(0 70% 50% / 0.1)" }}
+                              title="Удалить"
+                            >
+                              <Icon name="Trash2" size={13} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
                   )}
                 </tbody>
               </table>
-              <div className="px-4 py-2 flex items-center justify-between" style={{ background: "hsl(220 22% 10%)", borderTop: "1px solid hsl(220 18% 18%)" }}>
+              <div className="px-4 py-2" style={{ background: "hsl(220 22% 10%)", borderTop: "1px solid hsl(220 18% 18%)" }}>
                 <span className="text-xs mono" style={{ color: "hsl(215 15% 40%)" }}>
                   Показано: {filteredCases.length} из {cases.length} записей
                 </span>
@@ -317,34 +506,19 @@ export default function Index() {
           </div>
         )}
 
-        {/* CASE DETAIL MODAL */}
-        {selectedCase && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in"
-            style={{ background: "rgba(0,0,0,0.7)" }}
-            onClick={() => setSelectedCase(null)}
-          >
-            <div
-              className="w-full max-w-lg rounded-lg p-6 animate-scale-in"
-              style={{ background: "hsl(220 22% 11%)", border: "1px solid hsl(220 18% 22%)" }}
-              onClick={(e) => e.stopPropagation()}
-            >
+        {/* VIEW CASE MODAL */}
+        {viewCase && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in" style={{ background: "rgba(0,0,0,0.7)" }} onClick={() => setViewCase(null)}>
+            <div className="w-full max-w-lg rounded-lg p-6 animate-scale-in" style={{ background: "hsl(220 22% 11%)", border: "1px solid hsl(220 18% 22%)" }} onClick={(e) => e.stopPropagation()}>
               <div className="flex items-start justify-between mb-5">
                 <div>
-                  <div className="mono text-xs mb-1" style={{ color: "hsl(210 80% 52%)" }}>{selectedCase.number}</div>
-                  <div className="font-semibold text-base" style={{ color: "hsl(210 20% 92%)" }}>{selectedCase.category}</div>
+                  <div className="mono text-xs mb-1" style={{ color: "hsl(210 80% 52%)" }}>{viewCase.number}</div>
+                  <div className="font-semibold text-base" style={{ color: "hsl(210 20% 92%)" }}>{viewCase.category}</div>
                 </div>
-                <button onClick={() => setSelectedCase(null)} style={{ color: "hsl(215 15% 45%)" }}>
-                  <Icon name="X" size={18} />
-                </button>
+                <button onClick={() => setViewCase(null)} style={{ color: "hsl(215 15% 45%)" }}><Icon name="X" size={18} /></button>
               </div>
               <div className="space-y-3 text-sm">
-                {[
-                  { label: "Дата возбуждения", value: selectedCase.date, mono: true },
-                  { label: "Подозреваемый", value: selectedCase.suspect, mono: false },
-                  { label: "Следователь", value: selectedCase.investigator, mono: false },
-                  { label: "Район", value: selectedCase.district, mono: false },
-                ].map(({ label, value, mono }) => (
+                {([["Дата", viewCase.date, true], ["Подозреваемый", viewCase.suspect, false], ["Следователь", viewCase.investigator, false]] as [string, string, boolean][]).map(([label, value, mono]) => (
                   <div key={label} className="flex justify-between" style={{ borderBottom: "1px solid hsl(220 18% 18%)", paddingBottom: "8px" }}>
                     <span style={{ color: "hsl(215 15% 45%)" }}>{label}</span>
                     <span className={mono ? "mono" : ""} style={{ color: "hsl(210 20% 85%)" }}>{value}</span>
@@ -352,15 +526,111 @@ export default function Index() {
                 ))}
                 <div className="flex justify-between" style={{ borderBottom: "1px solid hsl(220 18% 18%)", paddingBottom: "8px" }}>
                   <span style={{ color: "hsl(215 15% 45%)" }}>Статус</span>
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${STATUS_CLASS[selectedCase.status]}`}>
-                    <Icon name={STATUS_ICON[selectedCase.status]} size={10} />
-                    {selectedCase.status}
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${STATUS_CLASS[viewCase.status]}`}>
+                    <Icon name={STATUS_ICON[viewCase.status]} size={10} />{viewCase.status}
                   </span>
                 </div>
                 <div>
                   <div className="mb-1 text-xs" style={{ color: "hsl(215 15% 45%)" }}>Описание</div>
-                  <div style={{ color: "hsl(210 20% 78%)" }}>{selectedCase.description}</div>
+                  <div style={{ color: "hsl(210 20% 78%)" }}>{viewCase.description}</div>
                 </div>
+              </div>
+              <div className="flex gap-2 mt-5">
+                <button onClick={() => { setEditCase({ ...viewCase }); setViewCase(null); setFormErrors({}); }} className="flex items-center gap-2 px-4 py-2 rounded text-xs font-medium" style={{ background: "hsl(210 80% 52%)", color: "white" }}>
+                  <Icon name="Pencil" size={12} />Редактировать
+                </button>
+                <button onClick={() => { setDeleteCase(viewCase); setViewCase(null); }} className="flex items-center gap-2 px-4 py-2 rounded text-xs font-medium" style={{ background: "hsl(0 70% 50% / 0.15)", color: "hsl(0 70% 60%)", border: "1px solid hsl(0 70% 50% / 0.3)" }}>
+                  <Icon name="Trash2" size={12} />Удалить
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* EDIT CASE MODAL */}
+        {editCase && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in" style={{ background: "rgba(0,0,0,0.7)" }} onClick={() => setEditCase(null)}>
+            <div className="w-full max-w-lg rounded-lg p-6 animate-scale-in" style={{ background: "hsl(220 22% 11%)", border: "1px solid hsl(220 18% 22%)" }} onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-5">
+                <div className="text-sm font-semibold" style={{ color: "hsl(210 20% 90%)" }}>Редактирование дела</div>
+                <button onClick={() => setEditCase(null)} style={{ color: "hsl(215 15% 45%)" }}><Icon name="X" size={18} /></button>
+              </div>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>НОМЕР ДЕЛА *</label>
+                    <input value={editCase.number} onChange={(e) => setEditCase({ ...editCase, number: e.target.value })} className="w-full px-3 py-2 rounded text-sm outline-none mono" style={inputStyle(formErrors.number)} onFocus={(e) => (e.target.style.borderColor = "hsl(210 80% 52%)")} onBlur={(e) => (e.target.style.borderColor = formErrors.number ? "hsl(0 70% 50%)" : "hsl(220 18% 18%)")} />
+                    {fieldErr(formErrors.number)}
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>ДАТА *</label>
+                    <input type="date" value={editCase.date} onChange={(e) => setEditCase({ ...editCase, date: e.target.value })} className="w-full px-3 py-2 rounded text-sm outline-none" style={{ ...inputStyle(formErrors.date), colorScheme: "dark" }} />
+                    {fieldErr(formErrors.date)}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>КАТЕГОРИЯ</label>
+                    <select value={editCase.category} onChange={(e) => setEditCase({ ...editCase, category: e.target.value as CaseCategory })} className="w-full px-3 py-2 rounded text-sm outline-none" style={inputStyle()}>
+                      {["Кража", "Мошенничество", "Хулиганство", "ДТП", "Разбой", "Наркотики"].map((c) => <option key={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>СТАТУС</label>
+                    <select value={editCase.status} onChange={(e) => setEditCase({ ...editCase, status: e.target.value as CaseStatus })} className="w-full px-3 py-2 rounded text-sm outline-none" style={inputStyle()}>
+                      {["Активное", "Расследование", "Приостановлено", "Закрыто"].map((s) => <option key={s}>{s}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>ПОДОЗРЕВАЕМЫЙ *</label>
+                  <input value={editCase.suspect} onChange={(e) => setEditCase({ ...editCase, suspect: e.target.value })} className="w-full px-3 py-2 rounded text-sm outline-none" style={inputStyle(formErrors.suspect)} onFocus={(e) => (e.target.style.borderColor = "hsl(210 80% 52%)")} onBlur={(e) => (e.target.style.borderColor = formErrors.suspect ? "hsl(0 70% 50%)" : "hsl(220 18% 18%)")} />
+                  {fieldErr(formErrors.suspect)}
+                </div>
+                <div>
+                  <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>СЛЕДОВАТЕЛЬ *</label>
+                  <input value={editCase.investigator} onChange={(e) => setEditCase({ ...editCase, investigator: e.target.value })} className="w-full px-3 py-2 rounded text-sm outline-none" style={inputStyle(formErrors.investigator)} onFocus={(e) => (e.target.style.borderColor = "hsl(210 80% 52%)")} onBlur={(e) => (e.target.style.borderColor = formErrors.investigator ? "hsl(0 70% 50%)" : "hsl(220 18% 18%)")} />
+                  {fieldErr(formErrors.investigator)}
+                </div>
+                <div>
+                  <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>ОПИСАНИЕ *</label>
+                  <textarea value={editCase.description} onChange={(e) => setEditCase({ ...editCase, description: e.target.value })} rows={3} className="w-full px-3 py-2 rounded text-sm outline-none resize-none" style={inputStyle(formErrors.description)} onFocus={(e) => (e.target.style.borderColor = "hsl(210 80% 52%)")} onBlur={(e) => (e.target.style.borderColor = formErrors.description ? "hsl(0 70% 50%)" : "hsl(220 18% 18%)")} />
+                  {fieldErr(formErrors.description)}
+                </div>
+              </div>
+              <div className="flex gap-2 mt-4">
+                <button onClick={handleUpdateCase} className="flex items-center gap-2 px-5 py-2.5 rounded text-sm font-medium" style={{ background: "hsl(210 80% 52%)", color: "white" }}>
+                  <Icon name="Check" size={14} />Сохранить
+                </button>
+                <button onClick={() => setEditCase(null)} className="px-4 py-2.5 rounded text-sm" style={{ background: "hsl(220 22% 15%)", color: "hsl(215 15% 55%)", border: "1px solid hsl(220 18% 20%)" }}>
+                  Отмена
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* DELETE CASE CONFIRM */}
+        {deleteCase && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in" style={{ background: "rgba(0,0,0,0.7)" }} onClick={() => setDeleteCase(null)}>
+            <div className="w-full max-w-sm rounded-lg p-6 animate-scale-in" style={{ background: "hsl(220 22% 11%)", border: "1px solid hsl(0 70% 40% / 0.3)" }} onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-9 h-9 rounded flex items-center justify-center flex-shrink-0" style={{ background: "hsl(0 70% 50% / 0.15)" }}>
+                  <Icon name="Trash2" size={16} style={{ color: "hsl(0 70% 60%)" }} />
+                </div>
+                <div>
+                  <div className="text-sm font-semibold" style={{ color: "hsl(210 20% 90%)" }}>Удалить дело?</div>
+                  <div className="text-xs mono" style={{ color: "hsl(210 80% 55%)" }}>{deleteCase.number}</div>
+                </div>
+              </div>
+              <p className="text-xs mb-5" style={{ color: "hsl(215 15% 50%)" }}>Это действие необратимо. Запись будет удалена из базы данных.</p>
+              <div className="flex gap-2">
+                <button onClick={() => handleDeleteCase(deleteCase.id)} className="flex items-center gap-2 px-4 py-2 rounded text-sm font-medium" style={{ background: "hsl(0 70% 50%)", color: "white" }}>
+                  <Icon name="Trash2" size={13} />Удалить
+                </button>
+                <button onClick={() => setDeleteCase(null)} className="px-4 py-2 rounded text-sm" style={{ background: "hsl(220 22% 15%)", color: "hsl(215 15% 55%)", border: "1px solid hsl(220 18% 20%)" }}>
+                  Отмена
+                </button>
               </div>
             </div>
           </div>
@@ -371,113 +641,56 @@ export default function Index() {
           <div className="animate-fade-in max-w-2xl">
             <div className="mb-5">
               <h2 className="text-base font-semibold mb-0.5" style={{ color: "hsl(210 20% 90%)" }}>Регистрация нового дела</h2>
-              <p className="text-xs" style={{ color: "hsl(215 15% 45%)" }}>Заполните все обязательные поля для создания записи в базе данных</p>
+              <p className="text-xs" style={{ color: "hsl(215 15% 45%)" }}>Поля, отмеченные * обязательны для заполнения</p>
             </div>
-
             <div className="rounded-lg p-6 space-y-4" style={{ background: "hsl(220 22% 11%)", border: "1px solid hsl(220 18% 18%)" }}>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>НОМЕР ДЕЛА</label>
-                  <input
-                    value={newCase.number}
-                    readOnly
-                    className="w-full px-3 py-2.5 rounded text-sm mono outline-none"
-                    style={{ background: "hsl(220 25% 8%)", border: "1px solid hsl(220 18% 18%)", color: "hsl(210 80% 62%)" }}
-                  />
+                  <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>НОМЕР ДЕЛА *</label>
+                  <input value={newCase.number} onChange={(e) => setNewCase({ ...newCase, number: e.target.value })} placeholder="УД-2024-000001" className="w-full px-3 py-2.5 rounded text-sm mono outline-none" style={inputStyle(formErrors.number)} onFocus={(e) => (e.target.style.borderColor = "hsl(210 80% 52%)")} onBlur={(e) => (e.target.style.borderColor = formErrors.number ? "hsl(0 70% 50%)" : "hsl(220 18% 18%)")} />
+                  {fieldErr(formErrors.number)}
                 </div>
                 <div>
-                  <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>ДАТА ВОЗБУЖДЕНИЯ</label>
-                  <input
-                    type="date"
-                    value={newCase.date}
-                    onChange={(e) => setNewCase({ ...newCase, date: e.target.value })}
-                    className="w-full px-3 py-2.5 rounded text-sm outline-none"
-                    style={{ background: "hsl(220 22% 13%)", border: "1px solid hsl(220 18% 18%)", color: "hsl(210 20% 85%)", colorScheme: "dark" }}
-                  />
+                  <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>ДАТА ВОЗБУЖДЕНИЯ *</label>
+                  <input type="date" value={newCase.date} onChange={(e) => setNewCase({ ...newCase, date: e.target.value })} className="w-full px-3 py-2.5 rounded text-sm outline-none" style={{ ...inputStyle(formErrors.date), colorScheme: "dark" }} />
+                  {fieldErr(formErrors.date)}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>КАТЕГОРИЯ *</label>
-                  <select
-                    value={newCase.category}
-                    onChange={(e) => setNewCase({ ...newCase, category: e.target.value as CaseCategory })}
-                    className="w-full px-3 py-2.5 rounded text-sm outline-none"
-                    style={{ background: "hsl(220 22% 13%)", border: "1px solid hsl(220 18% 18%)", color: "hsl(210 20% 85%)" }}
-                  >
-                    {["Кража", "Мошенничество", "Хулиганство", "ДТП", "Разбой", "Наркотики"].map((c) => (
-                      <option key={c}>{c}</option>
-                    ))}
+                  <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>КАТЕГОРИЯ</label>
+                  <select value={newCase.category} onChange={(e) => setNewCase({ ...newCase, category: e.target.value as CaseCategory })} className="w-full px-3 py-2.5 rounded text-sm outline-none" style={inputStyle()}>
+                    {["Кража", "Мошенничество", "Хулиганство", "ДТП", "Разбой", "Наркотики"].map((c) => <option key={c}>{c}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>РАЙОН</label>
-                  <select
-                    value={newCase.district}
-                    onChange={(e) => setNewCase({ ...newCase, district: e.target.value })}
-                    className="w-full px-3 py-2.5 rounded text-sm outline-none"
-                    style={{ background: "hsl(220 22% 13%)", border: "1px solid hsl(220 18% 18%)", color: "hsl(210 20% 85%)" }}
-                  >
-                    {["Центральный", "Северный", "Южный", "Восточный", "Западный"].map((d) => (
-                      <option key={d}>{d}</option>
-                    ))}
+                  <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>СТАТУС</label>
+                  <select value={newCase.status} onChange={(e) => setNewCase({ ...newCase, status: e.target.value as CaseStatus })} className="w-full px-3 py-2.5 rounded text-sm outline-none" style={inputStyle()}>
+                    {["Активное", "Расследование", "Приостановлено", "Закрыто"].map((s) => <option key={s}>{s}</option>)}
                   </select>
                 </div>
               </div>
               <div>
                 <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>ПОДОЗРЕВАЕМЫЙ (ФИО) *</label>
-                <input
-                  type="text"
-                  placeholder="Фамилия Имя Отчество"
-                  value={newCase.suspect}
-                  onChange={(e) => setNewCase({ ...newCase, suspect: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded text-sm outline-none"
-                  style={{ background: "hsl(220 22% 13%)", border: "1px solid hsl(220 18% 18%)", color: "hsl(210 20% 85%)" }}
-                  onFocus={(e) => (e.target.style.borderColor = "hsl(210 80% 52%)")}
-                  onBlur={(e) => (e.target.style.borderColor = "hsl(220 18% 18%)")}
-                />
+                <input type="text" placeholder="Фамилия Имя Отчество" value={newCase.suspect} onChange={(e) => setNewCase({ ...newCase, suspect: e.target.value })} className="w-full px-3 py-2.5 rounded text-sm outline-none" style={inputStyle(formErrors.suspect)} onFocus={(e) => (e.target.style.borderColor = "hsl(210 80% 52%)")} onBlur={(e) => (e.target.style.borderColor = formErrors.suspect ? "hsl(0 70% 50%)" : "hsl(220 18% 18%)")} />
+                {fieldErr(formErrors.suspect)}
               </div>
               <div>
                 <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>СЛЕДОВАТЕЛЬ *</label>
-                <input
-                  type="text"
-                  placeholder="Звание, Фамилия И.О."
-                  value={newCase.investigator}
-                  onChange={(e) => setNewCase({ ...newCase, investigator: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded text-sm outline-none"
-                  style={{ background: "hsl(220 22% 13%)", border: "1px solid hsl(220 18% 18%)", color: "hsl(210 20% 85%)" }}
-                  onFocus={(e) => (e.target.style.borderColor = "hsl(210 80% 52%)")}
-                  onBlur={(e) => (e.target.style.borderColor = "hsl(220 18% 18%)")}
-                />
+                <input type="text" placeholder="Звание Фамилия И.О." value={newCase.investigator} onChange={(e) => setNewCase({ ...newCase, investigator: e.target.value })} className="w-full px-3 py-2.5 rounded text-sm outline-none" style={inputStyle(formErrors.investigator)} onFocus={(e) => (e.target.style.borderColor = "hsl(210 80% 52%)")} onBlur={(e) => (e.target.style.borderColor = formErrors.investigator ? "hsl(0 70% 50%)" : "hsl(220 18% 18%)")} />
+                {fieldErr(formErrors.investigator)}
               </div>
               <div>
                 <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>ОПИСАНИЕ *</label>
-                <textarea
-                  placeholder="Краткое описание обстоятельств дела..."
-                  value={newCase.description}
-                  onChange={(e) => setNewCase({ ...newCase, description: e.target.value })}
-                  rows={3}
-                  className="w-full px-3 py-2.5 rounded text-sm outline-none resize-none"
-                  style={{ background: "hsl(220 22% 13%)", border: "1px solid hsl(220 18% 18%)", color: "hsl(210 20% 85%)" }}
-                  onFocus={(e) => (e.target.style.borderColor = "hsl(210 80% 52%)")}
-                  onBlur={(e) => (e.target.style.borderColor = "hsl(220 18% 18%)")}
-                />
+                <textarea placeholder="Краткое описание обстоятельств дела..." value={newCase.description} onChange={(e) => setNewCase({ ...newCase, description: e.target.value })} rows={3} className="w-full px-3 py-2.5 rounded text-sm outline-none resize-none" style={inputStyle(formErrors.description)} onFocus={(e) => (e.target.style.borderColor = "hsl(210 80% 52%)")} onBlur={(e) => (e.target.style.borderColor = formErrors.description ? "hsl(0 70% 50%)" : "hsl(220 18% 18%)")} />
+                {fieldErr(formErrors.description)}
               </div>
               <div className="flex items-center gap-3 pt-1">
-                <button
-                  onClick={handleSaveCase}
-                  disabled={!newCase.suspect || !newCase.investigator || !newCase.description || formSaved}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded text-sm font-medium transition-all disabled:opacity-40"
-                  style={{ background: formSaved ? "hsl(142 70% 40%)" : "hsl(210 80% 52%)", color: "white" }}
-                >
+                <button onClick={handleSaveCase} disabled={formSaved} className="flex items-center gap-2 px-5 py-2.5 rounded text-sm font-medium transition-all disabled:opacity-60" style={{ background: formSaved ? "hsl(142 70% 40%)" : "hsl(210 80% 52%)", color: "white" }}>
                   <Icon name={formSaved ? "Check" : "Save"} size={14} />
-                  {formSaved ? "Сохранено!" : "Зарегистрировать дело"}
+                  {formSaved ? "Зарегистрировано!" : "Зарегистрировать дело"}
                 </button>
-                <button
-                  onClick={() => setActiveTab("database")}
-                  className="px-4 py-2.5 rounded text-sm transition-all"
-                  style={{ background: "hsl(220 22% 15%)", color: "hsl(215 15% 55%)", border: "1px solid hsl(220 18% 20%)" }}
-                >
+                <button onClick={() => { setActiveTab("database"); setFormErrors({}); }} className="px-4 py-2.5 rounded text-sm" style={{ background: "hsl(220 22% 15%)", color: "hsl(215 15% 55%)", border: "1px solid hsl(220 18% 20%)" }}>
                   Отмена
                 </button>
               </div>
@@ -493,29 +706,82 @@ export default function Index() {
                 <h2 className="text-base font-semibold" style={{ color: "hsl(210 20% 90%)" }}>Реестр приказов</h2>
                 <p className="text-xs mt-0.5" style={{ color: "hsl(215 15% 45%)" }}>Всего документов: {orders.length}</p>
               </div>
+              <button onClick={() => { setShowOrderForm(true); setOrderErrors({}); }} className="flex items-center gap-2 px-4 py-2 rounded text-sm font-medium" style={{ background: "hsl(210 80% 52%)", color: "white" }}>
+                <Icon name="Plus" size={14} />Добавить приказ
+              </button>
             </div>
+
+            {/* Add order form */}
+            {showOrderForm && (
+              <div className="rounded-lg p-5 mb-4 animate-fade-in" style={{ background: "hsl(220 22% 11%)", border: "1px solid hsl(220 18% 22%)" }}>
+                <div className="text-sm font-medium mb-4" style={{ color: "hsl(210 20% 85%)" }}>Новый приказ</div>
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>НОМЕР *</label>
+                    <input value={newOrder.number} onChange={(e) => setNewOrder({ ...newOrder, number: e.target.value })} placeholder="ПР-2024-0001" className="w-full px-3 py-2 rounded text-sm mono outline-none" style={inputStyle(orderErrors.number)} onFocus={(e) => (e.target.style.borderColor = "hsl(210 80% 52%)")} onBlur={(e) => (e.target.style.borderColor = orderErrors.number ? "hsl(0 70% 50%)" : "hsl(220 18% 18%)")} />
+                    {fieldErr(orderErrors.number)}
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>ДАТА *</label>
+                    <input type="date" value={newOrder.date} onChange={(e) => setNewOrder({ ...newOrder, date: e.target.value })} className="w-full px-3 py-2 rounded text-sm outline-none" style={{ ...inputStyle(orderErrors.date), colorScheme: "dark" }} />
+                    {fieldErr(orderErrors.date)}
+                  </div>
+                </div>
+                <div className="mb-3">
+                  <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>НАИМЕНОВАНИЕ *</label>
+                  <input value={newOrder.title} onChange={(e) => setNewOrder({ ...newOrder, title: e.target.value })} placeholder="Наименование приказа" className="w-full px-3 py-2 rounded text-sm outline-none" style={inputStyle(orderErrors.title)} onFocus={(e) => (e.target.style.borderColor = "hsl(210 80% 52%)")} onBlur={(e) => (e.target.style.borderColor = orderErrors.title ? "hsl(0 70% 50%)" : "hsl(220 18% 18%)")} />
+                  {fieldErr(orderErrors.title)}
+                </div>
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  <div>
+                    <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>АВТОР *</label>
+                    <input value={newOrder.author} onChange={(e) => setNewOrder({ ...newOrder, author: e.target.value })} placeholder="Звание Фамилия И.О." className="w-full px-3 py-2 rounded text-sm outline-none" style={inputStyle(orderErrors.author)} onFocus={(e) => (e.target.style.borderColor = "hsl(210 80% 52%)")} onBlur={(e) => (e.target.style.borderColor = orderErrors.author ? "hsl(0 70% 50%)" : "hsl(220 18% 18%)")} />
+                    {fieldErr(orderErrors.author)}
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>ТИП</label>
+                    <select value={newOrder.type} onChange={(e) => setNewOrder({ ...newOrder, type: e.target.value as Order["type"] })} className="w-full px-3 py-2 rounded text-sm outline-none" style={inputStyle()}>
+                      {["Внутренний", "Нормативный", "Оперативный"].map((t) => <option key={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>СТАТУС</label>
+                    <select value={newOrder.signed ? "Подписан" : "На подписи"} onChange={(e) => setNewOrder({ ...newOrder, signed: e.target.value === "Подписан" })} className="w-full px-3 py-2 rounded text-sm outline-none" style={inputStyle()}>
+                      <option>На подписи</option>
+                      <option>Подписан</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={handleSaveOrder} disabled={orderSaved} className="flex items-center gap-2 px-4 py-2 rounded text-sm font-medium" style={{ background: orderSaved ? "hsl(142 70% 40%)" : "hsl(210 80% 52%)", color: "white" }}>
+                    <Icon name={orderSaved ? "Check" : "Save"} size={13} />{orderSaved ? "Сохранено!" : "Добавить"}
+                  </button>
+                  <button onClick={() => { setShowOrderForm(false); setOrderErrors({}); }} className="px-4 py-2 rounded text-sm" style={{ background: "hsl(220 22% 15%)", color: "hsl(215 15% 55%)", border: "1px solid hsl(220 18% 20%)" }}>
+                    Отмена
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="rounded overflow-hidden" style={{ border: "1px solid hsl(220 18% 18%)" }}>
               <table className="w-full text-sm">
                 <thead>
                   <tr style={{ background: "hsl(220 22% 10%)", borderBottom: "1px solid hsl(220 18% 18%)" }}>
-                    <th className="text-left px-4 py-3 text-xs mono font-medium" style={{ color: "hsl(215 15% 45%)" }}>НОМЕР</th>
-                    <th className="text-left px-4 py-3 text-xs mono font-medium" style={{ color: "hsl(215 15% 45%)" }}>ДАТА</th>
-                    <th className="text-left px-4 py-3 text-xs mono font-medium" style={{ color: "hsl(215 15% 45%)" }}>НАИМЕНОВАНИЕ</th>
-                    <th className="text-left px-4 py-3 text-xs mono font-medium" style={{ color: "hsl(215 15% 45%)" }}>АВТОР</th>
-                    <th className="text-left px-4 py-3 text-xs mono font-medium" style={{ color: "hsl(215 15% 45%)" }}>ТИП</th>
-                    <th className="text-left px-4 py-3 text-xs mono font-medium" style={{ color: "hsl(215 15% 45%)" }}>СТАТУС</th>
+                    {["НОМЕР", "ДАТА", "НАИМЕНОВАНИЕ", "АВТОР", "ТИП", "СТАТУС", ""].map((h) => (
+                      <th key={h} className="text-left px-4 py-3 text-xs mono font-medium" style={{ color: "hsl(215 15% 45%)" }}>{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {orders.map((o, i) => (
-                    <tr
-                      key={o.id}
-                      className="table-row-hover cursor-pointer"
-                      style={{
-                        background: i % 2 === 0 ? "hsl(220 22% 11%)" : "hsl(220 22% 12%)",
-                        borderBottom: "1px solid hsl(220 18% 16%)",
-                      }}
-                    >
+                  {orders.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="text-center py-16" style={{ color: "hsl(215 15% 40%)" }}>
+                        <Icon name="FileX" size={36} className="mx-auto mb-3 opacity-30" />
+                        <div className="text-sm">Нет приказов — добавьте первый</div>
+                      </td>
+                    </tr>
+                  ) : orders.map((o, i) => (
+                    <tr key={o.id} className="table-row-hover" style={{ background: i % 2 === 0 ? "hsl(220 22% 11%)" : "hsl(220 22% 12%)", borderBottom: "1px solid hsl(220 18% 16%)" }}>
                       <td className="px-4 py-3 mono text-xs font-medium" style={{ color: "hsl(210 80% 62%)" }}>{o.number}</td>
                       <td className="px-4 py-3 mono text-xs" style={{ color: "hsl(215 15% 60%)" }}>{o.date}</td>
                       <td className="px-4 py-3 text-xs" style={{ color: "hsl(210 20% 85%)" }}>{o.title}</td>
@@ -525,9 +791,7 @@ export default function Index() {
                           background: o.type === "Нормативный" ? "rgba(99,102,241,0.15)" : o.type === "Оперативный" ? "rgba(245,158,11,0.1)" : "rgba(107,114,128,0.1)",
                           color: o.type === "Нормативный" ? "#818cf8" : o.type === "Оперативный" ? "#f59e0b" : "#9ca3af",
                           border: `1px solid ${o.type === "Нормативный" ? "rgba(99,102,241,0.3)" : o.type === "Оперативный" ? "rgba(245,158,11,0.25)" : "rgba(107,114,128,0.2)"}`,
-                        }}>
-                          {o.type}
-                        </span>
+                        }}>{o.type}</span>
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded ${o.signed ? "status-active" : "status-investigation"}`}>
@@ -535,10 +799,104 @@ export default function Index() {
                           {o.signed ? "Подписан" : "На подписи"}
                         </span>
                       </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => { setEditOrder({ ...o }); setOrderErrors({}); }} className="p-1.5 rounded" style={{ color: "hsl(210 80% 55%)", background: "hsl(210 80% 52% / 0.1)" }} title="Редактировать">
+                            <Icon name="Pencil" size={13} />
+                          </button>
+                          <button onClick={() => setDeleteOrder(o)} className="p-1.5 rounded" style={{ color: "hsl(0 70% 55%)", background: "hsl(0 70% 50% / 0.1)" }} title="Удалить">
+                            <Icon name="Trash2" size={13} />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* EDIT ORDER MODAL */}
+        {editOrder && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in" style={{ background: "rgba(0,0,0,0.7)" }} onClick={() => setEditOrder(null)}>
+            <div className="w-full max-w-lg rounded-lg p-6 animate-scale-in" style={{ background: "hsl(220 22% 11%)", border: "1px solid hsl(220 18% 22%)" }} onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-5">
+                <div className="text-sm font-semibold" style={{ color: "hsl(210 20% 90%)" }}>Редактирование приказа</div>
+                <button onClick={() => setEditOrder(null)} style={{ color: "hsl(215 15% 45%)" }}><Icon name="X" size={18} /></button>
+              </div>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>НОМЕР *</label>
+                    <input value={editOrder.number} onChange={(e) => setEditOrder({ ...editOrder, number: e.target.value })} className="w-full px-3 py-2 rounded text-sm mono outline-none" style={inputStyle(orderErrors.number)} onFocus={(e) => (e.target.style.borderColor = "hsl(210 80% 52%)")} onBlur={(e) => (e.target.style.borderColor = orderErrors.number ? "hsl(0 70% 50%)" : "hsl(220 18% 18%)")} />
+                    {fieldErr(orderErrors.number)}
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>ДАТА *</label>
+                    <input type="date" value={editOrder.date} onChange={(e) => setEditOrder({ ...editOrder, date: e.target.value })} className="w-full px-3 py-2 rounded text-sm outline-none" style={{ ...inputStyle(orderErrors.date), colorScheme: "dark" }} />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>НАИМЕНОВАНИЕ *</label>
+                  <input value={editOrder.title} onChange={(e) => setEditOrder({ ...editOrder, title: e.target.value })} className="w-full px-3 py-2 rounded text-sm outline-none" style={inputStyle(orderErrors.title)} onFocus={(e) => (e.target.style.borderColor = "hsl(210 80% 52%)")} onBlur={(e) => (e.target.style.borderColor = orderErrors.title ? "hsl(0 70% 50%)" : "hsl(220 18% 18%)")} />
+                  {fieldErr(orderErrors.title)}
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>АВТОР *</label>
+                    <input value={editOrder.author} onChange={(e) => setEditOrder({ ...editOrder, author: e.target.value })} className="w-full px-3 py-2 rounded text-sm outline-none" style={inputStyle(orderErrors.author)} onFocus={(e) => (e.target.style.borderColor = "hsl(210 80% 52%)")} onBlur={(e) => (e.target.style.borderColor = orderErrors.author ? "hsl(0 70% 50%)" : "hsl(220 18% 18%)")} />
+                    {fieldErr(orderErrors.author)}
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>ТИП</label>
+                    <select value={editOrder.type} onChange={(e) => setEditOrder({ ...editOrder, type: e.target.value as Order["type"] })} className="w-full px-3 py-2 rounded text-sm outline-none" style={inputStyle()}>
+                      {["Внутренний", "Нормативный", "Оперативный"].map((t) => <option key={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1.5 mono" style={{ color: "hsl(215 15% 50%)" }}>СТАТУС</label>
+                    <select value={editOrder.signed ? "Подписан" : "На подписи"} onChange={(e) => setEditOrder({ ...editOrder, signed: e.target.value === "Подписан" })} className="w-full px-3 py-2 rounded text-sm outline-none" style={inputStyle()}>
+                      <option>На подписи</option>
+                      <option>Подписан</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2 mt-4">
+                <button onClick={handleUpdateOrder} className="flex items-center gap-2 px-5 py-2.5 rounded text-sm font-medium" style={{ background: "hsl(210 80% 52%)", color: "white" }}>
+                  <Icon name="Check" size={14} />Сохранить
+                </button>
+                <button onClick={() => setEditOrder(null)} className="px-4 py-2.5 rounded text-sm" style={{ background: "hsl(220 22% 15%)", color: "hsl(215 15% 55%)", border: "1px solid hsl(220 18% 20%)" }}>
+                  Отмена
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* DELETE ORDER CONFIRM */}
+        {deleteOrder && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in" style={{ background: "rgba(0,0,0,0.7)" }} onClick={() => setDeleteOrder(null)}>
+            <div className="w-full max-w-sm rounded-lg p-6 animate-scale-in" style={{ background: "hsl(220 22% 11%)", border: "1px solid hsl(0 70% 40% / 0.3)" }} onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-9 h-9 rounded flex items-center justify-center flex-shrink-0" style={{ background: "hsl(0 70% 50% / 0.15)" }}>
+                  <Icon name="Trash2" size={16} style={{ color: "hsl(0 70% 60%)" }} />
+                </div>
+                <div>
+                  <div className="text-sm font-semibold" style={{ color: "hsl(210 20% 90%)" }}>Удалить приказ?</div>
+                  <div className="text-xs mono" style={{ color: "hsl(210 80% 55%)" }}>{deleteOrder.number}</div>
+                </div>
+              </div>
+              <p className="text-xs mb-5" style={{ color: "hsl(215 15% 50%)" }}>Это действие необратимо. Документ будет удалён из реестра.</p>
+              <div className="flex gap-2">
+                <button onClick={() => handleDeleteOrder(deleteOrder.id)} className="flex items-center gap-2 px-4 py-2 rounded text-sm font-medium" style={{ background: "hsl(0 70% 50%)", color: "white" }}>
+                  <Icon name="Trash2" size={13} />Удалить
+                </button>
+                <button onClick={() => setDeleteOrder(null)} className="px-4 py-2 rounded text-sm" style={{ background: "hsl(220 22% 15%)", color: "hsl(215 15% 55%)", border: "1px solid hsl(220 18% 20%)" }}>
+                  Отмена
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -573,59 +931,41 @@ export default function Index() {
             <div className="grid grid-cols-2 gap-4">
               <div className="rounded-lg p-4" style={{ background: "hsl(220 22% 11%)", border: "1px solid hsl(220 18% 18%)" }}>
                 <h3 className="text-sm font-medium mb-4" style={{ color: "hsl(210 20% 85%)" }}>По категориям преступлений</h3>
-                <div className="space-y-3">
-                  {Object.entries(analytics.byCategory).sort((a, b) => b[1] - a[1]).map(([cat, count]) => {
-                    const pct = Math.round((count / analytics.total) * 100);
-                    return (
-                      <div key={cat}>
-                        <div className="flex justify-between text-xs mb-1">
-                          <span style={{ color: "hsl(210 20% 78%)" }}>{cat}</span>
-                          <span className="mono" style={{ color: "hsl(210 80% 62%)" }}>{count} ({pct}%)</span>
+                {Object.keys(analytics.byCategory).length === 0 ? (
+                  <div className="text-xs text-center py-8" style={{ color: "hsl(215 15% 40%)" }}>Нет данных</div>
+                ) : (
+                  <div className="space-y-3">
+                    {Object.entries(analytics.byCategory).sort((a, b) => b[1] - a[1]).map(([cat, count]) => {
+                      const pct = Math.round((count / analytics.total) * 100);
+                      return (
+                        <div key={cat}>
+                          <div className="flex justify-between text-xs mb-1">
+                            <span style={{ color: "hsl(210 20% 78%)" }}>{cat}</span>
+                            <span className="mono" style={{ color: "hsl(210 80% 62%)" }}>{count} ({pct}%)</span>
+                          </div>
+                          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "hsl(220 18% 18%)" }}>
+                            <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "hsl(210 80% 52%)" }} />
+                          </div>
                         </div>
-                        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "hsl(220 18% 18%)" }}>
-                          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "hsl(210 80% 52%)" }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <div className="rounded-lg p-4" style={{ background: "hsl(220 22% 11%)", border: "1px solid hsl(220 18% 18%)" }}>
-                <h3 className="text-sm font-medium mb-4" style={{ color: "hsl(210 20% 85%)" }}>По районам города</h3>
-                <div className="space-y-3">
-                  {Object.entries(analytics.byDistrict).sort((a, b) => b[1] - a[1]).map(([district, count], idx) => {
-                    const pct = Math.round((count / analytics.total) * 100);
-                    const colors = ["hsl(210 80% 52%)", "hsl(142 70% 45%)", "hsl(38 90% 50%)", "hsl(280 70% 55%)", "hsl(0 70% 55%)"];
-                    return (
-                      <div key={district}>
-                        <div className="flex justify-between text-xs mb-1">
-                          <span style={{ color: "hsl(210 20% 78%)" }}>{district} р-н</span>
-                          <span className="mono" style={{ color: colors[idx % colors.length] }}>{count} ({pct}%)</span>
-                        </div>
-                        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "hsl(220 18% 18%)" }}>
-                          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: colors[idx % colors.length] }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="col-span-2 rounded-lg p-4" style={{ background: "hsl(220 22% 11%)", border: "1px solid hsl(220 18% 18%)" }}>
                 <h3 className="text-sm font-medium mb-4" style={{ color: "hsl(210 20% 85%)" }}>Распределение по статусам</h3>
-                <div className="grid grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   {(["Активное", "Расследование", "Приостановлено", "Закрыто"] as CaseStatus[]).map((s) => {
                     const count = analytics.byStatus[s];
-                    const pct = Math.round((count / analytics.total) * 100);
+                    const pct = analytics.total === 0 ? 0 : Math.round((count / analytics.total) * 100);
                     return (
                       <div key={s} className="text-center p-3 rounded" style={{ background: "hsl(220 25% 8%)" }}>
                         <div className="text-2xl font-bold mono mb-1" style={{ color: "hsl(210 20% 90%)" }}>{count}</div>
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${STATUS_CLASS[s]}`}>
-                          <Icon name={STATUS_ICON[s]} size={10} />
-                          {s}
+                          <Icon name={STATUS_ICON[s]} size={10} />{s}
                         </span>
-                        <div className="text-xs mono mt-2" style={{ color: "hsl(215 15% 40%)" }}>{pct}%</div>
+                        <div className="text-xs mono mt-1.5" style={{ color: "hsl(215 15% 40%)" }}>{pct}%</div>
                       </div>
                     );
                   })}
@@ -639,7 +979,7 @@ export default function Index() {
       <footer className="py-3 px-6" style={{ borderTop: "1px solid hsl(220 18% 14%)", background: "hsl(220 28% 6%)" }}>
         <div className="max-w-screen-xl mx-auto flex items-center justify-between">
           <span className="text-xs mono" style={{ color: "hsl(215 15% 35%)" }}>АИС МВД · v1.0 · Для служебного пользования</span>
-          <span className="text-xs mono" style={{ color: "hsl(215 15% 35%)" }}>© 2024 МВД РФ</span>
+          <span className="text-xs mono" style={{ color: "hsl(215 15% 35%)" }}>© {new Date().getFullYear()} МВД РФ</span>
         </div>
       </footer>
     </div>
